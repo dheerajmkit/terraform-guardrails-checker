@@ -92,6 +92,94 @@ def check_iam_wildcards(blocks, path):
     return findings
 
 
+SEVERITIES = ("critical", "high", "medium", "low")
+
+REQUIRED_TAGS = ("Name", "Environment")
+TAGGABLE_TYPES = {"aws_security_group", "aws_s3_bucket", "aws_db_instance",
+                  "aws_ebs_volume"}
+
+
+def check_rds_encryption(blocks, path):
+    """RDS-001: RDS instance without storage encryption enabled."""
+    findings = []
+    for db in _resources(blocks, "aws_db_instance"):
+        if db.attrs.get("storage_encrypted") is not True:
+            findings.append({
+                "rule_id": "RDS-001",
+                "severity": "high",
+                "resource": db.name,
+                "file": path,
+                "line": db.line,
+                "message": "RDS instance does not set storage_encrypted = true",
+            })
+    return findings
+
+
+def check_ebs_encryption(blocks, path):
+    """EBS-001: EBS volume without encryption enabled."""
+    findings = []
+    for volume in _resources(blocks, "aws_ebs_volume"):
+        if volume.attrs.get("encrypted") is not True:
+            findings.append({
+                "rule_id": "EBS-001",
+                "severity": "medium",
+                "resource": volume.name,
+                "file": path,
+                "line": volume.line,
+                "message": "EBS volume does not set encrypted = true",
+            })
+    return findings
+
+
+def check_s3_public_acl(blocks, path):
+    """S3-002: S3 bucket with a public canned ACL."""
+    findings = []
+    for bucket in _resources(blocks, "aws_s3_bucket"):
+        acl = str(bucket.attrs.get("acl", "")).strip()
+        if acl in ("public-read", "public-read-write"):
+            findings.append({
+                "rule_id": "S3-002",
+                "severity": "high",
+                "resource": bucket.name,
+                "file": path,
+                "line": bucket.line,
+                "message": f"S3 bucket uses public ACL {acl!r}",
+            })
+    return findings
+
+
+def _tags_of(block):
+    tags = block.attrs.get("tags")
+    if isinstance(tags, dict):
+        return tags
+    nested = block.nested("tags")
+    if nested and isinstance(nested[0].attrs, dict):
+        return nested[0].attrs
+    return {}
+
+
+def check_required_tags(blocks, path):
+    """TAG-001: taggable resource missing Name/Environment tags."""
+    findings = []
+    for block in blocks:
+        if block.type != "resource" or not block.labels:
+            continue
+        if block.labels[0] not in TAGGABLE_TYPES:
+            continue
+        tags = _tags_of(block)
+        missing = [t for t in REQUIRED_TAGS if t not in tags]
+        if missing:
+            findings.append({
+                "rule_id": "TAG-001",
+                "severity": "low",
+                "resource": block.name,
+                "file": path,
+                "line": block.line,
+                "message": "missing required tags: " + ", ".join(missing),
+            })
+    return findings
+
+
 CHECKS = [
     {"id": "SG-001",
      "title": "Security group ingress open to the internet",
@@ -105,4 +193,20 @@ CHECKS = [
      "title": "IAM policy with wildcard action or resource",
      "severity": "high",
      "run": check_iam_wildcards},
+    {"id": "RDS-001",
+     "title": "RDS instance without storage encryption",
+     "severity": "high",
+     "run": check_rds_encryption},
+    {"id": "EBS-001",
+     "title": "EBS volume without encryption",
+     "severity": "medium",
+     "run": check_ebs_encryption},
+    {"id": "S3-002",
+     "title": "S3 bucket with public ACL",
+     "severity": "high",
+     "run": check_s3_public_acl},
+    {"id": "TAG-001",
+     "title": "Resource missing required tags (Name, Environment)",
+     "severity": "low",
+     "run": check_required_tags},
 ]
