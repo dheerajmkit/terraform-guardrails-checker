@@ -65,6 +65,19 @@ resource "aws_s3_bucket" "internal" {
 - **Suppression comments** (`# tfcheck:ignore=RULE-ID`) for accepted
   risks, scoped to a single block.
 
+## Try it
+
+```bash
+python3 run.py samples/                          # text report
+python3 run.py --json samples/                   # JSON report
+python3 run.py --min-severity high samples/      # high and above only
+python3 -m pytest tests/ -v                      # unit tests
+```
+
+See [docs/USAGE.md](docs/USAGE.md) for the check suite, suppression
+format, and CI notes, and [examples/ci-step.yml](examples/ci-step.yml)
+for a sample GitHub Actions step.
+
 ## Project layout
 
 ```
@@ -79,16 +92,7 @@ samples/
   vulnerable-sample.tf  # trips the day-1 checks (fictional resources)
   clean-sample.tf       # passes every check
   mixed-sample.tf       # RDS/EBS/ACL/tag issues + one suppressed finding
+tests/                  # pytest unit tests
+docs/USAGE.md           # full usage guide
+examples/               # sample CI step
 ```
-
-## Notes
-
-- The parser is intentionally minimal: it understands blocks, labels,
-  attributes, lists, object literals, and heredocs. Anything it does
-  not understand is skipped, never fatal.
-- IAM policy documents are parsed as JSON (heredoc style); policies
-  built with `jsonencode()` are kept opaque and skipped.
-
-## Roadmap
-
-- **Day 3:** pytest unit tests, usage docs, and a sample CI step.

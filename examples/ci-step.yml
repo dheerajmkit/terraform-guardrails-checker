@@ -1,0 +1,8 @@
+# Sample GitHub Actions step: fail on high-or-worse findings
+#
+# Copy into .github/workflows/ as its own job or step. Python 3 is
+# preinstalled on github-hosted runners; no dependencies to install.
+
+- name: Terraform guardrails check
+  run: |
+    python3 run.py --min-severity high terraform/
